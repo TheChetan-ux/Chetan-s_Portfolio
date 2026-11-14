@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { AIAssistant } from "./components/ai-assistant/AIAssistant";
-import portrait from "./assets/chetan-profile.jpeg";
+import portrait from "./assets/chetan-profile.png";
 
 const ImmersiveBackground = lazy(() => import("./components/immersive-background/ImmersiveBackground"));
 
