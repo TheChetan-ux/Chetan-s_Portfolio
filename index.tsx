@@ -1,4 +1,5 @@
-  import { Suspense, lazy, useEffect, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+  import { Suspense, lazy, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+  import { ValidationError, useForm } from "@formspree/react";
 import {
   ArrowDown,
   ArrowDownRight,
@@ -2950,12 +2951,18 @@ export function Portfolio() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
   const [showImmersiveBackground, setShowImmersiveBackground] = useState(false);
-  const [contactStatus, setContactStatus] = useState<{ type: "success" | "error" | "pending"; message: string } | null>(null);
-  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactFormState, submitContact] = useForm("xgakojvz");
+  const contactFormRef = useRef<HTMLFormElement>(null);
   const visibleProjects = projects.filter(
     (project) => projectFilter === "All work" || project.category === projectFilter,
   );
   const visibleSkills = skillMode === "All skills" ? skills : skills.filter((group) => group.label === skillMode);
+
+  useEffect(() => {
+    if (contactFormState.succeeded) {
+      contactFormRef.current?.reset();
+    }
+  }, [contactFormState.succeeded]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -2994,88 +3001,6 @@ export function Portfolio() {
     revealElements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, []);
-
-  async function submitContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(event.currentTarget);
-    const name = String(formData.get("name") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
-    const message = String(formData.get("message") ?? "").trim();
-    const endpoint = import.meta.env.VITE_FORMSPREE_ENDPOINT?.trim();
-
-    if (!endpoint) {
-      setContactStatus({
-        type: "error",
-        message: "Automatic delivery is not set up yet. Please email chetanbagaria0@gmail.com or configure the Formspree endpoint.",
-      });
-      return;
-    }
-
-    let endpointUrl: URL;
-    try {
-      endpointUrl = new URL(endpoint);
-    } catch {
-      setContactStatus({
-        type: "error",
-        message: "The Formspree endpoint is invalid. Check VITE_FORMSPREE_ENDPOINT and try again.",
-      });
-      return;
-    }
-
-    if (
-      endpointUrl.protocol !== "https:" ||
-      endpointUrl.hostname !== "formspree.io" ||
-      !/^\/f\/[A-Za-z0-9]+$/.test(endpointUrl.pathname)
-    ) {
-      setContactStatus({
-        type: "error",
-        message: "The Formspree endpoint is invalid. Use a URL in the format https://formspree.io/f/your-form-id.",
-      });
-      return;
-    }
-
-    setContactSubmitting(true);
-    setContactStatus({ type: "pending", message: "Sending your message…" });
-
-    try {
-      const response = await fetch(endpointUrl, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          message,
-          _replyto: email,
-          _subject: `Portfolio inquiry from ${name}`,
-        }),
-      });
-
-      if (!response.ok) {
-        setContactStatus({
-          type: "error",
-          message: `The email service could not accept your message (error ${response.status}). Please try again or email Chetan directly.`,
-        });
-        return;
-      }
-
-      form.reset();
-      setContactStatus({
-        type: "success",
-        message: "Thanks! Your message was sent. Chetan will get back to you soon.",
-      });
-    } catch {
-      setContactStatus({
-        type: "error",
-        message: "Could not reach the email service. Please check your connection and try again, or email Chetan directly.",
-      });
-    } finally {
-      setContactSubmitting(false);
-    }
-  }
 
   function handleHeroPointerMove(event: ReactPointerEvent<HTMLElement>) {
     if (event.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -3231,7 +3156,27 @@ export function Portfolio() {
 
       <section className="contact-section reveal-on-scroll" id="contact">
         <div className="contact-panel"><div className="section-heading"><span className="eyebrow">08 — YOUR TURN</span><span className="section-aside">GOOD IDEAS START WITH A CONVERSATION</span></div><div className="contact-grid"><div className="contact-copy"><span className="contact-availability"><i className="status-dot" /> OPEN TO INTERESTING PROJECTS</span><h2>Have an idea?<br /><em>Let’s build it.</em></h2><p>Have a project in mind, a tricky problem, or just want to say hi? I’d love to hear about it.</p><a className="contact-email" href="mailto:chetanbagaria0@gmail.com"><AtSign aria-hidden="true" /> chetanbagaria0@gmail.com <ArrowUpRight aria-hidden="true" /></a><div className="contact-socials"><a href="https://github.com/TheChetan-ux" target="_blank" rel="noreferrer"><Github aria-hidden="true" /> GitHub <ArrowUpRight aria-hidden="true" /></a><a href="https://www.linkedin.com/in/chetan-bagaria-124138318/" target="_blank" rel="noreferrer"><Linkedin aria-hidden="true" /> LinkedIn <ArrowUpRight aria-hidden="true" /></a><a href="tel:+918829847898"><Phone aria-hidden="true" /> Call <ArrowUpRight aria-hidden="true" /></a></div></div>
-            <form className="contact-form" onSubmit={submitContact}><label htmlFor="contact-name">Your name</label><input id="contact-name" name="name" autoComplete="name" placeholder="How should I call you?" required minLength={2} /><label htmlFor="contact-email">Your email</label><input id="contact-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required /><label htmlFor="contact-message">A little about your idea</label><textarea id="contact-message" name="message" placeholder="What are you thinking about?" rows={4} required minLength={10} /><Button type="submit" className="button-glow" disabled={contactSubmitting}>{contactSubmitting ? "Sending…" : "Send me a note"} <Send aria-hidden="true" /></Button>{contactStatus && <p className={`form-status form-status-${contactStatus.type}`} role={contactStatus.type === "error" ? "alert" : "status"}><Mail aria-hidden="true" /> {contactStatus.message}</p>}</form>
+            <form ref={contactFormRef} className="contact-form" onSubmit={submitContact}>
+              <label htmlFor="contact-name">Your name</label>
+              <input id="contact-name" name="name" autoComplete="name" placeholder="How should I call you?" required minLength={2} />
+              <ValidationError field="name" errors={contactFormState.errors} className="form-status form-status-error" role="alert" />
+              <label htmlFor="contact-email">Your email</label>
+              <input id="contact-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
+              <ValidationError field="email" errors={contactFormState.errors} className="form-status form-status-error" role="alert" />
+              <label htmlFor="contact-message">A little about your idea</label>
+              <textarea id="contact-message" name="message" placeholder="What are you thinking about?" rows={4} required minLength={10} />
+              <ValidationError field="message" errors={contactFormState.errors} className="form-status form-status-error" role="alert" />
+              <input type="hidden" name="_subject" value="Portfolio inquiry from Chetan's website" />
+              <Button type="submit" className="button-glow" disabled={contactFormState.submitting}>
+                {contactFormState.submitting ? "Sending…" : "Send me a note"} <Send aria-hidden="true" />
+              </Button>
+              <ValidationError errors={contactFormState.errors} className="form-status form-status-error" role="alert" />
+              {contactFormState.succeeded && (
+                <p className="form-status form-status-success" role="status">
+                  <Mail aria-hidden="true" /> Thanks! Your message was sent. Chetan will get back to you soon.
+                </p>
+              )}
+            </form>
           </div><footer className="site-footer"><a className="footer-brand" href="#home">C<span>.</span></a><span>MADE WITH CURIOSITY IN INDIA</span><a href="#home">BACK TO THE TOP <ChevronDown className="footer-up" aria-hidden="true" /></a><span>© 2026 CHETAN BAGARIA</span></footer>
         </div>
       </section>
